@@ -22,7 +22,7 @@ interface DataContextType {
     createTransaction: (data: { paymentMethod: "CASH" | "UPI"; items: { productId: string; quantity: number }[] }) => Promise<Transaction>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     getTransaction: (id: string) => Promise<any>;
-    fetchDashboardStats: () => Promise<DashboardData>;
+    fetchDashboardStats: (range?: "daily" | "weekly" | "monthly" | "yearly") => Promise<DashboardData>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -138,12 +138,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
     }, [mode]);
 
-    const fetchDashboardStats = useCallback(async () => {
+    const fetchDashboardStats = useCallback(async (range: "daily" | "weekly" | "monthly" | "yearly" = "daily") => {
         if (mode === "guest") {
             await new Promise(r => setTimeout(r, 300));
-            return LocalStorageManager.getDashboardStats();
+            return LocalStorageManager.getDashboardStats(range);
         } else {
-            const res = await fetch("/api/dashboard");
+            const res = await fetch(`/api/dashboard?range=${range}`);
             return await res.json();
         }
     }, [mode]);

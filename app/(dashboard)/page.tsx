@@ -58,12 +58,14 @@ export default function DashboardPage() {
     const { fetchDashboardStats } = useData();
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [timeRange, setTimeRange] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
 
     useEffect(() => {
-        fetchDashboardStats()
+        setLoading(true);
+        fetchDashboardStats(timeRange)
             .then(setData)
             .finally(() => setLoading(false));
-    }, [fetchDashboardStats]);
+    }, [fetchDashboardStats, timeRange]);
 
     if (loading) {
         return (
@@ -90,12 +92,39 @@ export default function DashboardPage() {
 
     return (
         <div>
-            <h1 className="page-title" style={{ marginBottom: 24 }}>Dashboard</h1>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+                <h1 className="page-title" style={{ marginBottom: 0 }}>Dashboard</h1>
+
+                {/* Time Range Toggle */}
+                <div style={{ display: "flex", background: "#F3F4F6", padding: 4, borderRadius: 8, gap: 4 }}>
+                    {(["daily", "weekly", "monthly", "yearly"] as const).map(range => (
+                        <button
+                            key={range}
+                            onClick={() => setTimeRange(range)}
+                            style={{
+                                padding: "6px 12px",
+                                fontSize: 13,
+                                fontWeight: timeRange === range ? 600 : 500,
+                                color: timeRange === range ? "#0F3D2E" : "#6B7280",
+                                background: timeRange === range ? "white" : "transparent",
+                                border: "none",
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                boxShadow: timeRange === range ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
+                                transition: "all 0.2s ease",
+                                textTransform: "capitalize"
+                            }}
+                        >
+                            {range}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
             {/* Stat Cards */}
             <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
                 <StatCard
-                    label="Today's Revenue"
+                    label={timeRange === "daily" ? "Today's Revenue" : `${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} Revenue`}
                     value={`₹${data.today.total.toLocaleString("en-IN")}`}
                     sub={`${data.today.transactions} transactions`}
                     trend={data.today.total > 0 ? "up" : "neutral"}
@@ -109,7 +138,7 @@ export default function DashboardPage() {
                     value={`₹${data.today.upi.toLocaleString("en-IN")}`}
                 />
                 <StatCard
-                    label="Today's Profit"
+                    label={timeRange === "daily" ? "Today's Profit" : `${timeRange.charAt(0).toUpperCase() + timeRange.slice(1)} Profit`}
                     value={`₹${data.today.profit.toLocaleString("en-IN")}`}
                     trend={data.today.profit > 0 ? "up" : data.today.profit < 0 ? "down" : "neutral"}
                 />
@@ -119,7 +148,9 @@ export default function DashboardPage() {
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, marginBottom: 32 }}>
                 {/* Revenue Bar Chart */}
                 <div className="card">
-                    <div className="section-label" style={{ marginBottom: 16 }}>Revenue — Last 7 Days</div>
+                    <div className="section-label" style={{ marginBottom: 16 }}>
+                        Revenue — {timeRange === 'daily' || timeRange === 'weekly' ? 'Last 7 Days' : timeRange === 'monthly' ? 'Last 30 Days' : 'Last 12 Months'}
+                    </div>
                     <ResponsiveContainer width="100%" height={240}>
                         <BarChart data={data.chartData} barCategoryGap="25%">
                             <XAxis

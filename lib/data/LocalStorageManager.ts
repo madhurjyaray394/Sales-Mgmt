@@ -175,7 +175,7 @@ export class LocalStorageManager {
         return localStorage.getItem(KEYS.GUEST_SESSION) === "true";
     }
 
-    static getDashboardStats(): DashboardData {
+    static getDashboardStats(range: "daily" | "weekly" | "monthly" | "yearly" = "daily"): DashboardData {
         let txJson = localStorage.getItem(KEYS.TRANSACTIONS);
         if (!txJson || txJson === "[]") {
             txJson = JSON.stringify(MOCK_TRANSACTIONS);
@@ -188,51 +188,100 @@ export class LocalStorageManager {
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const endOfDay = startOfDay + 86400000;
 
-        const sevenDaysAgo = startOfDay - 6 * 86400000;
+        let startTime = startOfDay;
+        let chartPoints = 7;
+        let chartInterval = "day"; // "day" or "month"
 
-        const todayTxns = transactions.filter(t => {
+        switch (range) {
+            case "weekly":
+                startTime = startOfDay - 6 * 86400000;
+                chartPoints = 7;
+                break;
+            case "monthly":
+                startTime = startOfDay - 29 * 86400000;
+                chartPoints = 30;
+                break;
+            case "yearly":
+                const d = new Date(startOfDay);
+                d.setMonth(d.getMonth() - 11);
+                d.setDate(1);
+                startTime = d.getTime();
+                chartPoints = 12;
+                chartInterval = "month";
+                break;
+            case "daily":
+            default:
+                startTime = startOfDay;
+                break;
+        }
+
+        const rangeTxns = transactions.filter(t => {
             const time = new Date(t.createdAt).getTime();
-            return time >= startOfDay && time < endOfDay;
+            return time >= startTime && time < endOfDay;
         });
 
-        const todayTotal = todayTxns.reduce((s, t) => s + t.totalAmount, 0);
-        const todayCash = todayTxns.filter(t => t.paymentMethod === "CASH").reduce((s, t) => s + t.totalAmount, 0);
-        const todayUPI = todayTxns.filter(t => t.paymentMethod === "UPI").reduce((s, t) => s + t.totalAmount, 0);
+        const todayTotal = rangeTxns.reduce((s, t) => s + t.totalAmount, 0);
+        const todayCash = rangeTxns.filter(t => t.paymentMethod === "CASH").reduce((s, t) => s + t.totalAmount, 0);
+        const todayUPI = rangeTxns.filter(t => t.paymentMethod === "UPI").reduce((s, t) => s + t.totalAmount, 0);
 
-        // Estimate profit: (selling - cost) * qty
         let profit = 0;
-        for (const t of todayTxns) {
+        for (const t of rangeTxns) {
             for (const item of t.items) {
-                // Find product to get cost price
                 const p = products.find(p => p.id === item.productId);
                 const cost = p?.costPrice || 0;
                 profit += (item.priceAtSale - cost) * item.quantity;
             }
         }
 
-        // 7-day chart
+        // Chart Data
         const dayMap: Record<string, { date: string; sales: number }> = {};
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(sevenDaysAgo + i * 86400000);
-            const key = d.toISOString().slice(0, 10);
-            dayMap[key] = {
-                date: d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
-                sales: 0,
-            };
+
+        // Chart start time depends on range
+        let chartStartTime = startTime;
+        if (range === "daily") {
+            chartStartTime = startOfDay - 6 * 86400000; // Daily shows 7 days back
+        }
+
+        const chartStartObj = new Date(chartStartTime);
+
+        if (chartInterval === "day") {
+            for (let i = 0; i < chartPoints; i++) {
+                const d = new Date(chartStartObj.getTime() + i * 86400000);
+                const key = d.toISOString().slice(0, 10);
+                dayMap[key] = {
+                    date: d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+                    sales: 0,
+                };
+            }
+        } else {
+            for (let i = 0; i < chartPoints; i++) {
+                const d = new Date(chartStartObj.getFullYear(), chartStartObj.getMonth() + i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                dayMap[key] = {
+                    date: d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+                    sales: 0,
+                };
+            }
         }
 
         for (const t of transactions) {
             const time = new Date(t.createdAt).getTime();
-            if (time >= sevenDaysAgo) {
-                const key = new Date(t.createdAt).toISOString().slice(0, 10);
-                if (dayMap[key]) dayMap[key].sales += t.totalAmount;
+            if (time >= chartStartTime) {
+                const dateObj = new Date(t.createdAt);
+                if (chartInterval === "day") {
+                    const key = dateObj.toISOString().slice(0, 10);
+                    if (dayMap[key]) dayMap[key].sales += t.totalAmount;
+                } else {
+                    const key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                    if (dayMap[key]) dayMap[key].sales += t.totalAmount;
+                }
             }
         }
         const chartData = Object.values(dayMap);
 
         // Top products
         const salesMap = new Map<string, { qty: number; rev: number; name: string }>();
-        for (const t of todayTxns) {
+        for (const t of rangeTxns) {
             for (const item of t.items) {
                 const existing = salesMap.get(item.productId) || { qty: 0, rev: 0, name: item.product.name };
                 existing.qty += item.quantity;
@@ -255,7 +304,7 @@ export class LocalStorageManager {
         return {
             today: {
                 total: todayTotal,
-                transactions: todayTxns.length,
+                transactions: rangeTxns.length,
                 cash: todayCash,
                 upi: todayUPI,
                 profit

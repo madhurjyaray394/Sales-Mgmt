@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useData } from "@/contexts/DataContext";
 import { Transaction } from "@/lib/data/types";
 import { Download, X, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { CustomDatePicker } from "@/components/CustomDatePicker";
 
 export default function SalesPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -53,12 +54,18 @@ export default function SalesPage() {
             {/* Filters */}
             <div className="card" style={{ marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div>
-                    <label className="label">From Date</label>
-                    <input type="date" className="input" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} style={{ width: 160 }} />
+                    <CustomDatePicker
+                        label="From Date"
+                        value={from}
+                        onChange={(val) => { setFrom(val); setPage(1); }}
+                    />
                 </div>
                 <div>
-                    <label className="label">To Date</label>
-                    <input type="date" className="input" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} style={{ width: 160 }} />
+                    <CustomDatePicker
+                        label="To Date"
+                        value={to}
+                        onChange={(val) => { setTo(val); setPage(1); }}
+                    />
                 </div>
                 {(from || to) && (
                     <button className="btn btn-secondary" onClick={() => { setFrom(""); setTo(""); setPage(1); }} style={{ fontSize: 13 }}>Clear Filter</button>

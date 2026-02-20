@@ -2,33 +2,64 @@ import { supabase } from '@/lib/supabase';
 import { Product } from '@/types';
 
 export const DashboardService = {
-    async getDashboardData() {
+    async getDashboardData(range: "daily" | "weekly" | "monthly" | "yearly" = "daily") {
         const now = new Date();
-        // Start of today (00:00:00)
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        // End of today (23:59:59)
         const endOfDay = new Date(startOfDay.getTime() + 86400000 - 1);
 
-        // 7 days ago
-        const sevenDaysAgo = new Date(startOfDay);
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+        let startDate = new Date(startOfDay);
+        let chartPoints = 7;
+        let chartInterval = "day"; // "day" or "month"
 
-        // 1. Get Today's Transactions
-        const { data: todayTxns, error: todayError } = await supabase
+        switch (range) {
+            case "weekly":
+                startDate.setDate(startDate.getDate() - 6);
+                chartPoints = 7;
+                break;
+            case "monthly":
+                startDate.setDate(startDate.getDate() - 29);
+                chartPoints = 30;
+                break;
+            case "yearly":
+                startDate.setMonth(startDate.getMonth() - 11);
+                startDate.setDate(1); // Start of that month
+                chartPoints = 12;
+                chartInterval = "month";
+                break;
+            case "daily":
+            default:
+                startDate = new Date(startOfDay); // Only today's txns for totals
+                chartPoints = 7; // Even for 'daily' view, chart shows last 7 days usually, or just 1 day?
+                // Let's make daily chart show last 7 days still, or 24 hours? 
+                // The requirement is "weekly, monthly, yearly view of the dashboard". 
+                // We'll keep daily chart showing 7 days for context, but totals are today.
+                startDate = new Date(startOfDay);
+                break;
+        }
+
+        // 1. Get Transactions for Totals (based on range)
+        const { data: rangeTxns, error: rangeError } = await supabase
             .from('Transaction')
             .select('*, items:TransactionItem(*, product:Product(costPrice))')
-            .gte('createdAt', startOfDay.toISOString())
+            .gte('createdAt', startDate.toISOString())
             .lte('createdAt', endOfDay.toISOString());
 
-        if (todayError) throw todayError;
+        if (rangeError) throw rangeError;
 
-        // 2. Get 7-day Transactions for Chart
-        const { data: sevenDayTxns, error: sevenDayError } = await supabase
+        // 2. Get Transactions for Chart
+        // For daily/weekly, chart shows last 7 days. For monthly, 30. For yearly, 12 months.
+        let chartStartDate = new Date(startDate);
+        if (range === "daily") {
+            chartStartDate = new Date(startOfDay);
+            chartStartDate.setDate(chartStartDate.getDate() - 6); // default 7-day chart for daily view
+        }
+
+        const { data: chartTxns, error: chartError } = await supabase
             .from('Transaction')
             .select('totalAmount, createdAt')
-            .gte('createdAt', sevenDaysAgo.toISOString());
+            .gte('createdAt', chartStartDate.toISOString());
 
-        if (sevenDayError) throw sevenDayError;
+        if (chartError) throw chartError;
 
         // 3. Get Low Stock Products
         const { data: lowStockProducts, error: stockError } = await supabase
@@ -44,7 +75,7 @@ export const DashboardService = {
         // 4. Get Top Products (using RPC)
         const { data: topProducts, error: topInfoError } = await supabase
             .rpc('get_top_products', {
-                start_date: startOfDay.toISOString(),
+                start_date: startDate.toISOString(),
                 end_date: endOfDay.toISOString(),
                 limit_count: 5
             });
@@ -56,15 +87,15 @@ export const DashboardService = {
 
         // --- Process Data ---
 
-        // Today Stats
-        const todayTotal = todayTxns?.reduce((sum, t) => sum + t.totalAmount, 0) || 0;
-        const todayCash = todayTxns?.filter(t => t.paymentMethod === 'CASH').reduce((sum, t) => sum + t.totalAmount, 0) || 0;
-        const todayUPI = todayTxns?.filter(t => t.paymentMethod === 'UPI').reduce((sum, t) => sum + t.totalAmount, 0) || 0;
+        // Range Stats (Totals)
+        const todayTotal = rangeTxns?.reduce((sum, t) => sum + t.totalAmount, 0) || 0;
+        const todayCash = rangeTxns?.filter(t => t.paymentMethod === 'CASH').reduce((sum, t) => sum + t.totalAmount, 0) || 0;
+        const todayUPI = rangeTxns?.filter(t => t.paymentMethod === 'UPI').reduce((sum, t) => sum + t.totalAmount, 0) || 0;
 
         // Profit Calculation
         let profitEstimate = 0;
-        if (todayTxns) {
-            for (const txn of todayTxns) {
+        if (rangeTxns) {
+            for (const txn of rangeTxns) {
                 if (!txn.items) continue;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 for (const item of (txn.items as any[])) {
@@ -79,20 +110,39 @@ export const DashboardService = {
 
         // Chart Data
         const dayMap: Record<string, { date: string; sales: number }> = {};
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(sevenDaysAgo);
-            d.setDate(d.getDate() + i);
-            const key = d.toISOString().slice(0, 10);
-            dayMap[key] = {
-                date: d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
-                sales: 0,
-            };
+
+        if (chartInterval === "day") {
+            for (let i = 0; i < chartPoints; i++) {
+                const d = new Date(chartStartDate);
+                d.setDate(d.getDate() + i);
+                const key = d.toISOString().slice(0, 10);
+                dayMap[key] = {
+                    date: d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+                    sales: 0,
+                };
+            }
+        } else {
+            // Month interval
+            for (let i = 0; i < chartPoints; i++) {
+                const d = new Date(chartStartDate.getFullYear(), chartStartDate.getMonth() + i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                dayMap[key] = {
+                    date: d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+                    sales: 0,
+                };
+            }
         }
 
-        if (sevenDayTxns) {
-            for (const t of sevenDayTxns) {
-                const key = new Date(t.createdAt).toISOString().slice(0, 10);
-                if (dayMap[key]) dayMap[key].sales += t.totalAmount;
+        if (chartTxns) {
+            for (const t of chartTxns) {
+                const dateObj = new Date(t.createdAt);
+                if (chartInterval === "day") {
+                    const key = dateObj.toISOString().slice(0, 10);
+                    if (dayMap[key]) dayMap[key].sales += t.totalAmount;
+                } else {
+                    const key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                    if (dayMap[key]) dayMap[key].sales += t.totalAmount;
+                }
             }
         }
         const chartData = Object.values(dayMap);
@@ -108,7 +158,7 @@ export const DashboardService = {
         return {
             today: {
                 total: todayTotal,
-                transactions: todayTxns?.length || 0,
+                transactions: rangeTxns?.length || 0,
                 cash: todayCash,
                 upi: todayUPI,
                 profit: Math.max(0, profitEstimate),

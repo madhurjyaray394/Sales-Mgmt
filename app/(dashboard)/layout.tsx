@@ -10,7 +10,9 @@ import {
     TrendingUp,
     LogOut,
     Box,
+    MessageSquare,
 } from "lucide-react";
+import { BusinessAssistant } from "@/components/BusinessAssistant";
 
 const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -147,6 +149,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             >
                 {children}
             </main>
+
+            {/* AI Assistant */}
+            <BusinessAssistant />
         </div>
     );
 }

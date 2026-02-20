@@ -3,9 +3,12 @@ import { DashboardService } from "@/services/dashboard.service";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const data = await DashboardService.getDashboardData();
+        const { searchParams } = new URL(request.url);
+        const range = searchParams.get("range") as "daily" | "weekly" | "monthly" | "yearly" || "daily";
+
+        const data = await DashboardService.getDashboardData(range);
         return NextResponse.json(data);
     } catch (error) {
         console.error(error);
