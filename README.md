@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sales Management App
 
-## Getting Started
+A production-ready MVP sales management system for small local businesses.
 
-First, run the development server:
+**Login:** `admin@shop.com` / `admin123`
+
+---
+
+## Setup Guide
+
+### 1. Configure Environment
+
+Copy the example env file and fill in your Supabase details:
+
+```bash
+cp .env.example .env.local
+```
+
+Open `.env.local` and set:
+
+```
+DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
+JWT_SECRET="your-long-random-secret-string-here"
+```
+
+**Where to find your Supabase connection string:**
+- Go to [supabase.com](https://supabase.com) → Your Project → **Project Settings** → **Database**
+- Copy the **URI** connection string (switch to **URI** tab)
+- Replace `[YOUR-PASSWORD]` with your database password
+
+### 2. Generate Prisma Client
+
+```bash
+npx prisma generate
+```
+
+### 3. Push Database Schema
+
+This creates all tables in your Supabase database:
+
+```bash
+npm run db:push
+```
+
+### 4. Seed Sample Data
+
+```bash
+npm run db:seed
+```
+
+This creates:
+- Admin user: `admin@shop.com` / `admin123`
+- 12 sample Indian grocery products
+
+### 5. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open: [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Features
 
-## Learn More
+| Feature | Description |
+|---------|-------------|
+| **Billing** | Search products, build cart, Cash/UPI toggle, generate bill + PDF |
+| **Dashboard** | Today's stats, 7-day bar chart, top 5 products, low stock alerts |
+| **Products** | Add/Edit/Delete, stock tracking, profit margin display |
+| **Sales History** | Paginated list, date filter, bill detail modal, CSV export |
+| **Invoice PDF** | Thermal receipt (80mm) format, download or print |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment (Vercel)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+```
 
-## Deploy on Vercel
+Then:
+1. Push code to GitHub
+2. Connect repo to [vercel.com](https://vercel.com)
+3. Add environment variables in Vercel dashboard:
+   - `DATABASE_URL` → your Supabase connection string
+   - `JWT_SECRET` → your secret key
+4. Deploy!
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+sales-mgmt/
+├── app/
+│   ├── (dashboard)/      ← Protected pages (layout with sidebar)
+│   │   ├── page.tsx      ← Dashboard
+│   │   ├── billing/      ← Billing screen
+│   │   ├── products/     ← Product management
+│   │   └── sales/        ← Sales history
+│   ├── api/
+│   │   ├── auth/         ← Login / Logout
+│   │   ├── products/     ← Products CRUD
+│   │   ├── transactions/ ← Bills, CSV export
+│   │   ├── invoice/      ← PDF generation
+│   │   └── dashboard/    ← Aggregation stats
+│   └── login/            ← Login page
+├── lib/
+│   ├── prisma.ts         ← DB singleton
+│   ├── auth.ts           ← JWT helpers
+│   └── pdf.ts            ← Invoice PDF generator
+├── prisma/
+│   ├── schema.prisma     ← Database schema
+│   └── seed.ts           ← Demo data
+└── middleware.ts          ← JWT auth guard
+```
