@@ -68,8 +68,6 @@ for day in range(7):
             p['stockQuantity'] -= qty 
             
             items.append({
-                'id': item_id,
-                'transactionId': tx_id,
                 'productId': p['id'],
                 'quantity': qty,
                 'priceAtSale': p['sellingPrice'],
