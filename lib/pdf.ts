@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, PDFName } from "pdf-lib";
 
 interface InvoiceItem {
     name: string;
@@ -93,8 +93,8 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Uint8Array>
             item.name.length > maxNameLen ? item.name.slice(0, maxNameLen) + "…" : item.name;
         drawText(name, margin, y, 8);
         drawText(String(item.quantity), margin + 90, y, 8);
-        drawText(`₹${item.priceAtSale.toFixed(2)}`, margin + 120, y, 8);
-        drawText(`₹${item.total.toFixed(2)}`, col, y, 8, false, "right");
+        drawText(`Rs. ${item.priceAtSale.toFixed(2)}`, margin + 120, y, 8);
+        drawText(`Rs. ${item.total.toFixed(2)}`, col, y, 8, false, "right");
         y -= lineH;
     }
 
@@ -104,13 +104,23 @@ export async function generateInvoicePDF(data: InvoiceData): Promise<Uint8Array>
 
     // Total
     drawText("GRAND TOTAL", margin, y, 10, true);
-    drawText(`₹${data.totalAmount.toFixed(2)}`, col, y, 10, true, "right");
+    drawText(`Rs. ${data.totalAmount.toFixed(2)}`, col, y, 10, true, "right");
     y -= lineH + 4;
     drawText(`Payment: ${data.paymentMethod}`, margin, y, 8);
     y -= lineH + 8;
     drawLine(y);
     y -= lineH;
     drawText("Thank you for shopping with us!", 0, y, 8, false, "center");
+
+    // Add JavaScript to auto-open the print dialog when the PDF is viewed
+    doc.catalog.set(
+        PDFName.of('OpenAction'),
+        doc.context.obj({
+            Type: 'Action',
+            S: 'JavaScript',
+            JS: 'this.print({bUI:true,bSilent:false,bShrinkToFit:true});',
+        })
+    );
 
     const pdfBytes = await doc.save();
     return pdfBytes;

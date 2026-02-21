@@ -82,7 +82,6 @@ export const DashboardService = {
 
         if (topInfoError) {
             console.error("RPC Error (get_top_products):", topInfoError);
-            // Fallback or empty if RPC fails/not exists
         }
 
         // --- Process Data ---
@@ -97,7 +96,6 @@ export const DashboardService = {
         if (rangeTxns) {
             for (const txn of rangeTxns) {
                 if (!txn.items) continue;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 for (const item of (txn.items as any[])) {
                     // item.product might be an array or object depending on join, usually object
                     const cost = item.product?.costPrice || 0;
